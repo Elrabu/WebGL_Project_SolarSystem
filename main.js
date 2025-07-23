@@ -16,6 +16,12 @@ let cameraRotation = { x: 0, y: 0 };
 let isMouseDown = false;
 let cameraZoom = 2.0; //standart camera zoom
 
+let brightnessPassProgramm, blurProgram, combineProgram, fullscreenProgram;
+
+let hdrFBO, colorBuffer;
+let brightnessFBO, blurFBO;
+let fullScreenQuad;
+
 
 function setupCameraRotation() {
 	const canvas = document.querySelector("canvas");
@@ -51,6 +57,7 @@ function clamp(value, min, max) { //set lowest and highest possible value
 
 async function initialize() {
 
+
 	setupCameraRotation();
 	setupCameraZoom();
 
@@ -58,14 +65,20 @@ async function initialize() {
 	// everytime we talk to WebGL we use this object
 	gl = canvas.getContext("webgl2", { alpha: false });
 
+	gl.getExtension("EXT_color_buffer_float"); // ✅ required
+	gl.getExtension("OES_texture_float_linear"); // optional for smooth filtering
+
+
 	if (!gl) { console.error("Your browser does not support WebGL2"); }
 	// set the resolution of the html canvas element
 	canvas.width = 500; canvas.height = 350;
 
 	// set the resolution of the framebuffer
 	gl.viewport(0, 0, canvas.width, canvas.height);
-
 	gl.enable(gl.DEPTH_TEST); // enable z-buffering
+	gl.enable(gl.CULL_FACE);
+	gl.cullFace(gl.BACK);
+	
 
 	// loadTextResource returns a string that contains the content of a text file
 	const vertexShaderText = await loadTextResource("shader.vert");
@@ -76,8 +89,9 @@ async function initialize() {
 
 	// link the two shaders - create a program that uses both shaders
 	program = createProgram(gl, vertexShader, fragmentShader);
-	const textureLocation = gl.getUniformLocation(program, "u_texture");
+	
 	gl.useProgram(program);
+	const textureLocation = gl.getUniformLocation(program, "u_texture");
 	gl.uniform1i(textureLocation, 0); // use texture unit 0
 
 	uploadAttributeData(sphereMesh); //input mesh to upload
@@ -127,7 +141,94 @@ async function initialize() {
 		gl.bindTexture(gl.TEXTURE_2D, null);
 	};
 	image3.src = "textures/moon.jpg";
+
+	const brightnessShaderText = await loadTextResource("bright-pass.frag");
+	const blurShaderText = await loadTextResource("blur_shader.frag");
+	const combineProgramText = await loadTextResource("combine.frag");
+	const fullScreenShaderText = await loadTextResource("fullscreen.vert");
+	const dummyFragText = await loadTextResource("dummy.frag");
+
+	const brightnessShader = createShader(gl, gl.FRAGMENT_SHADER, brightnessShaderText);
+	const blurShader = createShader(gl, gl.FRAGMENT_SHADER, blurShaderText);
+	const combineShader = createShader(gl, gl.FRAGMENT_SHADER, combineProgramText);
+	const fullScreenShader = createShader(gl, gl.VERTEX_SHADER, fullScreenShaderText);
+	const dummyFragShader = createShader(gl, gl.FRAGMENT_SHADER, dummyFragText);
+
+	brightnessPassProgramm = createProgram(gl, fullScreenShader, brightnessShader);
+	blurProgram = createProgram(gl, fullScreenShader, blurShader);
+	combineProgram = createProgram(gl, fullScreenShader, combineShader);
+	fullscreenProgram = createProgram(gl, fullScreenShader, dummyFragShader);
+
+	const width = canvas.width;
+	const height = canvas.height;
+
+	initFramebuffer(width, height);
+
+	brightnessFBO = createFBO(width, height);
+	blurFBO = [
+		createFBO(width, height),
+		createFBO(width, height)
+	];
+
+	fullScreenQuad = gl.createVertexArray();
+	gl.bindVertexArray(fullScreenQuad);
+
+	const quadBuffer = gl.createBuffer();
+	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+		-1, -1,
+		1, -1,
+		-1, 1,
+		1, 1
+	]), gl.STATIC_DRAW);
+
+	const posLoc = gl.getAttribLocation(fullscreenProgram, "a_position");
+	gl.enableVertexAttribArray(posLoc);
+	gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+	gl.bindVertexArray(null);
 }
+
+function initFramebuffer(width, height) { //create framebuffer
+	const canvas = document.querySelector("canvas");
+	hdrFBO = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, hdrFBO);
+
+	colorBuffer = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, colorBuffer);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, canvas.width, canvas.height, 0, gl.RGBA, gl.FLOAT, null);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, colorBuffer, 0);
+
+	const depthBuffer = gl.createRenderbuffer();
+	gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+	gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, canvas.width, canvas.height);
+	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
+}
+
+function createFBO(width, height) {
+	const fbo = gl.createFramebuffer();
+	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+	const tex = gl.createTexture();
+	gl.bindTexture(gl.TEXTURE_2D, tex);
+	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.FLOAT, null);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+	return { fbo, tex };
+}
+
+
 
 function uploadAttributeData(mesh) {
 	vao = gl.createVertexArray();
@@ -168,16 +269,19 @@ function uploadAttributeData(mesh) {
 }
 
 function render(time) {
+	// ==== First render pass ====
+	gl.bindFramebuffer(gl.FRAMEBUFFER, hdrFBO);
+	gl.enable(gl.DEPTH_TEST);
 	gl.clearColor(0, 0, 0, 1);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+	gl.useProgram(program);
 	//set up light from Sun
 	const lightPosition = [0.0, 0.0, 0.0]; // Sun at origin
 	const lightPosLocation = gl.getUniformLocation(program, "u_lightPos");
 	gl.uniform3fv(lightPosLocation, lightPosition);
 	const isSunLocation = gl.getUniformLocation(program, "u_isSun");
 
-	gl.useProgram(program);
 	gl.bindVertexArray(vao);
 
 	// Shared view/projection matrices
@@ -201,14 +305,14 @@ function render(time) {
 	gl.uniformMatrix4fv(uniformModelMatrixLocation, true, modelMatrix1);
 
 	//bind the texture for the first sphere
-	gl.bindTexture(gl.TEXTURE_2D, texture);
-
 	gl.activeTexture(gl.TEXTURE0);           // Use texture unit 0
 	gl.bindTexture(gl.TEXTURE_2D, texture);  // Bind the texture
 
 	//sun glows on its own:
 	gl.uniform1i(isSunLocation, 1); 
 
+	
+	
 	//draw the first sphere:
 	gl.drawElements(gl.TRIANGLES, numVertices, gl.UNSIGNED_SHORT, 0);
 
@@ -263,11 +367,78 @@ function render(time) {
 	gl.bindVertexArray(null);
 	gl.useProgram(null);
 
+	// ==== Post processing ====
+	// brightness
+	gl.bindFramebuffer(gl.FRAMEBUFFER, brightnessFBO.fbo);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	gl.disable(gl.DEPTH_TEST);
+	gl.useProgram(brightnessPassProgramm);
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, colorBuffer);
+	gl.uniform1i(gl.getUniformLocation(brightnessPassProgramm, "uScene"), 0);
+	gl.uniform1f(gl.getUniformLocation(brightnessPassProgramm, "uThreshold"), 0.2); //enables bloom
+
+	drawFullscreenQuad();
+
+	// blur
+	let horizontal = true;
+	let firstInput = brightnessFBO.tex; 
+	const iterations = 10;
+
+	gl.useProgram(blurProgram);
+
+	for (let i = 0; i < iterations; i++) {
+		const targetFBO = blurFBO[+horizontal];
+
+		gl.bindFramebuffer(gl.FRAMEBUFFER, targetFBO.fbo);
+		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+		gl.uniform2f(
+			gl.getUniformLocation(blurProgram, "uDirection"),
+			horizontal ? 1.0 : 0.0,
+			horizontal ? 0.0 : 1.0
+		);
+
+		gl.activeTexture(gl.TEXTURE0);
+		gl.bindTexture(gl.TEXTURE_2D, firstInput);
+		gl.uniform1i(gl.getUniformLocation(blurProgram, "uTexture"), 0);
+
+		drawFullscreenQuad();
+
+		firstInput = targetFBO.tex;
+		horizontal = !horizontal;
+	}
+
+	// combine
+	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+	gl.useProgram(combineProgram);
+
+	gl.activeTexture(gl.TEXTURE0);
+	gl.bindTexture(gl.TEXTURE_2D, colorBuffer);
+	gl.uniform1i(gl.getUniformLocation(combineProgram, "uScene"), 0);
+
+	gl.activeTexture(gl.TEXTURE1);
+	gl.bindTexture(gl.TEXTURE_2D, firstInput);
+	gl.uniform1i(gl.getUniformLocation(combineProgram, "uBloom"), 1);
+
+	gl.uniform1f(gl.getUniformLocation(combineProgram, "uBloomIntensity"), 1.2);
+
+	drawFullscreenQuad();
+
 	requestAnimationFrame(render);
 	
 }
 
 //helper function for rendering
+function drawFullscreenQuad() {
+	gl.bindVertexArray(fullScreenQuad);
+	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+	gl.bindBuffer(gl.ARRAY_BUFFER, null);
+}
+
 function getViewMatrix() {
 	const vT = mat4Translation(0, 0, -5 * cameraZoom);
 	const vRy = mat4RotY(cameraRotation.y * Math.PI / 180);
