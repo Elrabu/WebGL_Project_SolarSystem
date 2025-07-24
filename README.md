@@ -1,36 +1,54 @@
-# Project Template
+# Solar System Project
 
-> You may remove the content of this file and put your documentation here.
+## Features implemented into the Project:
+- Basic camera system:
+  - Rotation of the camera in all directions
+  - Camera zoom
+- Texturing:
+  - unique Texture on every sphere
+- Scene composition:
+  - three spheres placed into the scene
+  - like a Solar System, one rotates around the center sphere
+  - the third sphere rotates around the second sphere relative to its current position
+- User interaction:
+  - UI slider that control the Animation speed
+- Time-based animation:
+  - spheres move around each other
+  - light is calculated from the middle sphere outwards, creating a shadow on the other sider of the sphere
+- Bloom Effect:
+  - illuminates the Sun, Earth, and Moon with a bloom effect that is added in post processing
 
-This is a minimal template you can use as a starting point for your project. It's similar to the exercises and contains:
+## How do the features work?
 
-- simple geometry setup (position and uv)
-- minimal matrix calculation
-- a slider that can be read with `document.querySelector("#slider").value`
-- minimal shaders
-- mesh data for some basic shapes can be found in `mesh-data.js`
-  - by placing those in your scene with different transforms, you should be able to create an interesting scene without having to load external assets from 3D files (like obj, gltf, fbx).
-  - ![Meshes defined in mesh-data.js](meshes.png)
-- you can use your own or external meshes with the help of this [mesh loader](https://gitlab.mi.hdm-stuttgart.de/computer-graphics/mesh-loader).
+### Basic camera system/zoom:
+- On the canvas, Mouse movement and Interaction is recorded with a function and stored in variables like `isMouseDown`, `cameraZoom` and `cameraRotation`
+- THese variables are then used to set the variables `cameraRotation` and `cameraZoom` which are then used to update the view Matrix so that the Objects are translated and rotated depending on the Camera Angle and Zoom.
 
-## Usage with Visual Studio Code
+### Texturing:
+- The texture that are mapped on the spheres are located in the `/textures` folder
+- The textures are created and configured as `texture` `texture2` and `texture3`
+- when the spheres are drawn, the respective Textures are bound to be used in rendering the current object (`gl.bindTexture(gl.TEXTURE_2D, texture);`)
 
-1. Open the folder where this `README` is located with VSCode (`File` > `Open Folder...`).
-2. Install the Extension [Live Server](https://marketplace.visualstudio.com/items?itemName=ritwickdey.LiveServer). With this extension you can launch a local static file server.
-3. Right-click `index.html` of the exercise you want to work on and click `Open with Live Server`.
-4. The website opens in your default browser. Everytime you save a file in VSCode, the browser tab gets refreshed.
-5. Install the Extension [Shader languages support for VS Code](https://marketplace.visualstudio.com/items?itemName=slevesque.shader) to get syntax highlighting for the shaders we will write.
+### Scene composition
+- The mesh Data for the sphere is located in `/mesh-data.js`, which is uploaded into the `uploadAttributeData` function 
+- the function creates a VAO (Vertex Array Object) where the indices, positions, UVs, and normals are stored
+- the attributes are then uploaded to the GPU with each `gl.bufferData(...)` call 
+- The `view Matrix`, `projection Matrix` and `model Matrix` are set based on mathematical calculation where each of the spheres shuold be, then they are drawn on the canvas
+- the calculation uses the input from a time variable which will be explained in `Time-based animation`
 
-## Alternatives to Visual Studio Code
+### User interaction:
+- The User can interact with the scene through a slider that changes the Animation speed
+- the slider value is stored into the `speed` variable which influences the animation speed
 
-If you want to use another code editor, that's also completely fine. In that case you will need another static file server. You may use one of those command line servers:
+### Time-based animation:
+- the time variable is automaticall provided by `requestAnimationFrame(render);`
+- its used to set the Sun Rotation, the Earth orbiting and rotation and the Moon orbiting and rotation
+- using `mat4RotY` the values are added to the respective transformation matrices
 
-- `npx http-server` (Node.js)
-- `npx five-server` (Node.js)
-- `python -m SimpleHTTPServer` (Python 2.x)
-- `python -m http.server` (Python 3.x)
-- `php -S localhost:8000` (PHP 5.4+)
-
-## Why do we need a static file server?
-
-The shader code is stored in text files (like `shader.frag`, `shader.vert`). We want to read the files from javascript. This is only possible with a static file server.
+### Bloom Effect:
+- The bloom effect is created by using post processing on the renderd image on the canvas
+- The steps are:
+  - the rendered scene is saved into a Framebuffer
+  - the bright Areas are extracted with a bright pass filter (`bright-pass.frag`)
+  - the bright Areas are blurred with a Gaussian blue (`blur_shader.frag`)
+  - the blurred areas are combined with the original Framebuffer (`combine.frag`)

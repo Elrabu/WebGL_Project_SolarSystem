@@ -56,8 +56,7 @@ function clamp(value, min, max) { //set lowest and highest possible value
 }
 
 async function initialize() {
-
-
+	
 	setupCameraRotation();
 	setupCameraZoom();
 
@@ -65,8 +64,8 @@ async function initialize() {
 	// everytime we talk to WebGL we use this object
 	gl = canvas.getContext("webgl2", { alpha: false });
 
-	gl.getExtension("EXT_color_buffer_float"); // ✅ required
-	gl.getExtension("OES_texture_float_linear"); // optional for smooth filtering
+	//get extension to be able to use the extended color buffer
+	gl.getExtension("EXT_color_buffer_float"); 
 
 
 	if (!gl) { console.error("Your browser does not support WebGL2"); }
@@ -91,10 +90,12 @@ async function initialize() {
 	program = createProgram(gl, vertexShader, fragmentShader);
 	
 	gl.useProgram(program);
+	//find the u_texture uniform in the shader
 	const textureLocation = gl.getUniformLocation(program, "u_texture");
+	//assign it to use texture unit 0, which will later be bound to an actual texture (gl.bindTexture)
 	gl.uniform1i(textureLocation, 0); // use texture unit 0
 
-	uploadAttributeData(sphereMesh); //input mesh to upload
+	uploadAttributeData(sphereMesh); //input mesh to upload (sphere Mesh Data)
 
 	uniformModelMatrixLocation = gl.getUniformLocation(program, "u_modelMatrix");
 	uniformViewMatrixLocation = gl.getUniformLocation(program, "u_viewMatrix");
@@ -305,8 +306,10 @@ function render(time) {
 	gl.uniformMatrix4fv(uniformModelMatrixLocation, true, modelMatrix1);
 
 	//bind the texture for the first sphere
+	//activates texture unit 0 so that any subsequent texture operations
 	gl.activeTexture(gl.TEXTURE0);           // Use texture unit 0
-	gl.bindTexture(gl.TEXTURE_2D, texture);  // Bind the texture
+	//bind the texture for the first object to be drawn
+	gl.bindTexture(gl.TEXTURE_2D, texture);  // bind the texture
 
 	//sun glows on its own:
 	gl.uniform1i(isSunLocation, 1); 
@@ -321,7 +324,7 @@ function render(time) {
 	const orbitX = Math.cos(-t) * radius;
 	const orbitZ = Math.sin(-t) * radius;
 
-	//apply texture2:
+	//bind the second texture for the second object
 	gl.bindTexture(gl.TEXTURE_2D, texture2); // second texture
 
 	const spin = mat4RotY(t * 2.0); // spin speed (adjust as needed) (days per orbit, realisitc: 365)
@@ -356,7 +359,7 @@ function render(time) {
 	const moonModelMatrix = mat4Mul(orbitTranslation,mat4Mul(moonOrbitTranslation,mat4Mul(moonSpin,moonscale))); //Earth's position + Moon's position around Earth + Moon rotation
 
 	gl.uniformMatrix4fv(uniformModelMatrixLocation, true, moonModelMatrix)
-
+	//bind the third texture for the third object
 	gl.bindTexture(gl.TEXTURE_2D, texture3);
 
 	//moon also doesnt glow on its own:
