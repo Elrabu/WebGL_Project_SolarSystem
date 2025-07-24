@@ -21,7 +21,7 @@ void main() {
 
     // Simple Lambertian diffuse shading
     float diffuse = max(dot(normal, lightDirection), 0.0);
-
+    //check if texture is sun
 	vec4 texColor = texture(u_texture, v_uv);
     if (u_isSun == 1) {
         outColor = texColor; // No shading

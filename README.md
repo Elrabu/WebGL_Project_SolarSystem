@@ -16,7 +16,7 @@
   - spheres move around each other
   - light is calculated from the middle sphere outwards, creating a shadow on the other sider of the sphere
 - Bloom Effect:
-  - illuminates the Sun, Earth, and Moon with a bloom effect that is added in post processing
+  - illuminates the Sun with a bloom effect that is added in post processing
 
 ## How do the features work?
 
@@ -44,6 +44,10 @@
 - the time variable is automaticall provided by `requestAnimationFrame(render);`
 - its used to set the Sun Rotation, the Earth orbiting and rotation and the Moon orbiting and rotation
 - using `mat4RotY` the values are added to the respective transformation matrices
+- the light is implemented using basic Lambertian diffuse shading in the fragment shader
+- the light is treated as a point light from the sun in the middle
+- for the earth an moon, the light is calculated from the sphere normals and the light direction
+- the sun skips this light calculation to simulate self illumination
 
 ### Bloom Effect:
 - The bloom effect is created by using post processing on the renderd image on the canvas
@@ -52,3 +56,7 @@
   - the bright Areas are extracted with a bright pass filter (`bright-pass.frag`)
   - the bright Areas are blurred with a Gaussian blue (`blur_shader.frag`)
   - the blurred areas are combined with the original Framebuffer (`combine.frag`)
+
+### Why the bloom effect?
+- The bloom effect give the sun a nice glow effect like in real life
+

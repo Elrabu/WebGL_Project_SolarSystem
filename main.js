@@ -56,11 +56,11 @@ function clamp(value, min, max) { //set lowest and highest possible value
 }
 
 async function initialize() {
-	
+
 	setupCameraRotation();
 	setupCameraZoom();
-
-	const canvas = document.querySelector("canvas"); // get the html canvas element
+	// get the html canvas element
+	const canvas = document.querySelector("canvas"); 
 	// everytime we talk to WebGL we use this object
 	gl = canvas.getContext("webgl2", { alpha: false });
 
@@ -75,8 +75,8 @@ async function initialize() {
 	// set the resolution of the framebuffer
 	gl.viewport(0, 0, canvas.width, canvas.height);
 	gl.enable(gl.DEPTH_TEST); // enable z-buffering
-	gl.enable(gl.CULL_FACE);
-	gl.cullFace(gl.BACK);
+	gl.enable(gl.CULL_FACE); //enable face culling
+	gl.cullFace(gl.BACK);  //enable back Face Culling
 	
 
 	// loadTextResource returns a string that contains the content of a text file
@@ -88,7 +88,7 @@ async function initialize() {
 
 	// link the two shaders - create a program that uses both shaders
 	program = createProgram(gl, vertexShader, fragmentShader);
-	
+	//tell WebGl to use this program
 	gl.useProgram(program);
 	//find the u_texture uniform in the shader
 	const textureLocation = gl.getUniformLocation(program, "u_texture");
@@ -96,7 +96,7 @@ async function initialize() {
 	gl.uniform1i(textureLocation, 0); // use texture unit 0
 
 	uploadAttributeData(sphereMesh); //input mesh to upload (sphere Mesh Data)
-
+	//initialize the Matrices with the program
 	uniformModelMatrixLocation = gl.getUniformLocation(program, "u_modelMatrix");
 	uniformViewMatrixLocation = gl.getUniformLocation(program, "u_viewMatrix");
 	uniformProjectionMatrixLocation = gl.getUniformLocation(program, "u_projectionMatrix");
@@ -106,14 +106,14 @@ async function initialize() {
 	const image = new Image();
 	image.onload = function () {
 		gl.bindTexture(gl.TEXTURE_2D, texture);
-		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+		gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); //dont flip it upside down
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image); 
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
 		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 		gl.generateMipmap(gl.TEXTURE_2D);
 		gl.bindTexture(gl.TEXTURE_2D, null);
 	};
-	image.src = "textures/sun.jpg";
+	image.src = "textures/sun.jpg"; //get texture from texture folder
 
 	//create earth texture:
 	texture2 = gl.createTexture();
@@ -142,19 +142,19 @@ async function initialize() {
 		gl.bindTexture(gl.TEXTURE_2D, null);
 	};
 	image3.src = "textures/moon.jpg";
-
+	//load shader from respective shader file
 	const brightnessShaderText = await loadTextResource("bright-pass.frag");
 	const blurShaderText = await loadTextResource("blur_shader.frag");
 	const combineProgramText = await loadTextResource("combine.frag");
 	const fullScreenShaderText = await loadTextResource("fullscreen.vert");
 	const dummyFragText = await loadTextResource("dummy.frag");
-
+	//create the shader with the loaded file
 	const brightnessShader = createShader(gl, gl.FRAGMENT_SHADER, brightnessShaderText);
 	const blurShader = createShader(gl, gl.FRAGMENT_SHADER, blurShaderText);
 	const combineShader = createShader(gl, gl.FRAGMENT_SHADER, combineProgramText);
 	const fullScreenShader = createShader(gl, gl.VERTEX_SHADER, fullScreenShaderText);
-	const dummyFragShader = createShader(gl, gl.FRAGMENT_SHADER, dummyFragText);
-
+	const dummyFragShader = createShader(gl, gl.FRAGMENT_SHADER, dummyFragText); //use a dummy shader to fill the attribute (outputs color white)
+	//create the respective Programs from the shaders to be used later in the render step
 	brightnessPassProgramm = createProgram(gl, fullScreenShader, brightnessShader);
 	blurProgram = createProgram(gl, fullScreenShader, blurShader);
 	combineProgram = createProgram(gl, fullScreenShader, combineShader);
@@ -162,18 +162,19 @@ async function initialize() {
 
 	const width = canvas.width;
 	const height = canvas.height;
-
+	//create the Frame Buffer with the screen width and height
 	initFramebuffer(width, height);
-
+	//create the Brightness Frame Buffer Object to store the Brightness
 	brightnessFBO = createFBO(width, height);
 	blurFBO = [
 		createFBO(width, height),
 		createFBO(width, height)
 	];
-
+	//create a Vertex Array for the full screen that is displayed
 	fullScreenQuad = gl.createVertexArray();
-	gl.bindVertexArray(fullScreenQuad);
+	gl.bindVertexArray(fullScreenQuad); 
 
+	//creates a full screen quad to be used for the Bright and Blur shader later on
 	const quadBuffer = gl.createBuffer();
 	gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
 	gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -182,20 +183,21 @@ async function initialize() {
 		-1, 1,
 		1, 1
 	]), gl.STATIC_DRAW);
-
+	//use the full displayed screen for the quad
 	const posLoc = gl.getAttribLocation(fullscreenProgram, "a_position");
 	gl.enableVertexAttribArray(posLoc);
 	gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
+	//unbind to prevent accidental modification later on
 	gl.bindVertexArray(null);
 }
 
 function initFramebuffer(width, height) { //create framebuffer
 	const canvas = document.querySelector("canvas");
+	//create the high dynamic range Frame buffer Object (hdrFBO)
 	hdrFBO = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, hdrFBO);
-
-	colorBuffer = gl.createTexture();
+	//create a color buffer for colored pixels, configure it like a texture
+	colorBuffer = gl.createTexture(); 
 	gl.bindTexture(gl.TEXTURE_2D, colorBuffer);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, canvas.width, canvas.height, 0, gl.RGBA, gl.FLOAT, null);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -204,16 +206,20 @@ function initFramebuffer(width, height) { //create framebuffer
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, colorBuffer, 0);
 
+	//create a depth buffer to store depth information (What sphere is behind which sphere?)
 	const depthBuffer = gl.createRenderbuffer();
+	//Binds the depthBuffer to be configurable
 	gl.bindRenderbuffer(gl.RENDERBUFFER, depthBuffer);
+	//Allocates depth storage for the bound renderbuffer (16 bit depth)
 	gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, canvas.width, canvas.height);
+	//Attaches the depthBuffer to the current framebuffer (gl.FRAMEBUFFER) as its depth attachment
 	gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthBuffer);
 }
-
+	//helper function to create a framebuffer Object
 function createFBO(width, height) {
 	const fbo = gl.createFramebuffer();
 	gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
-
+	//create a texture for the framebuffer and configure it
 	const tex = gl.createTexture();
 	gl.bindTexture(gl.TEXTURE_2D, tex);
 	gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, width, height, 0, gl.RGBA, gl.FLOAT, null);
@@ -221,9 +227,9 @@ function createFBO(width, height) {
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
 	gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
+	//attaches a texture (tex) to the framebuffer's color output slot, so that rendering results go into the texture instead of the screen.
 	gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
-
+	// unbinds the currently bound framebuffer
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
 	return { fbo, tex };
@@ -276,6 +282,7 @@ function render(time) {
 	gl.clearColor(0, 0, 0, 1);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+	//use the standart program that was defined earlier
 	gl.useProgram(program);
 	//set up light from Sun
 	const lightPosition = [0.0, 0.0, 0.0]; // Sun at origin
@@ -314,8 +321,6 @@ function render(time) {
 	//sun glows on its own:
 	gl.uniform1i(isSunLocation, 1); 
 
-	
-	
 	//draw the first sphere:
 	gl.drawElements(gl.TRIANGLES, numVertices, gl.UNSIGNED_SHORT, 0);
 
@@ -380,45 +385,49 @@ function render(time) {
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, colorBuffer);
 	gl.uniform1i(gl.getUniformLocation(brightnessPassProgramm, "uScene"), 0);
-	gl.uniform1f(gl.getUniformLocation(brightnessPassProgramm, "uThreshold"), 0.2); //enables bloom
-
+	gl.uniform1f(gl.getUniformLocation(brightnessPassProgramm, "uThreshold"), 0.5); //enables bloom
+	//draw the fullscreen squad that fills the whole displayed screen, saves the light information below the threshold
 	drawFullscreenQuad();
 
 	// blur
 	let horizontal = true;
 	let firstInput = brightnessFBO.tex; 
-	const iterations = 10;
-
+	const iterations = 100;
+	//use the create blue Program instead of the standart program
 	gl.useProgram(blurProgram);
-
+	//iterate over the framebuffer multiple times to blur smoother
 	for (let i = 0; i < iterations; i++) {
 		const targetFBO = blurFBO[+horizontal];
-
+		//choose a framebuffer where the blurred image will be rendered to
 		gl.bindFramebuffer(gl.FRAMEBUFFER, targetFBO.fbo);
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
+		//horizontal and vertical blur
 		gl.uniform2f(
 			gl.getUniformLocation(blurProgram, "uDirection"),
 			horizontal ? 1.0 : 0.0,
 			horizontal ? 0.0 : 1.0
 		);
-
+		
 		gl.activeTexture(gl.TEXTURE0);
+		//bind the input texture to the first texture unit and 
 		gl.bindTexture(gl.TEXTURE_2D, firstInput);
+		//tell the blurProgram shader to use it
 		gl.uniform1i(gl.getUniformLocation(blurProgram, "uTexture"), 0);
-
+		//Draw the fullscreen quad to apply the blur shader across the whole quad (image)
 		drawFullscreenQuad();
 
+		// update firstInput to the result of this blur pass, so the next pass blurs it further
 		firstInput = targetFBO.tex;
+		//Toggle horizontal so the next blur is in the other direction.
 		horizontal = !horizontal;
 	}
 
 	// combine
 	gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
+	
 	gl.useProgram(combineProgram);
-
+	//set the blured texture as active
 	gl.activeTexture(gl.TEXTURE0);
 	gl.bindTexture(gl.TEXTURE_2D, colorBuffer);
 	gl.uniform1i(gl.getUniformLocation(combineProgram, "uScene"), 0);
@@ -428,9 +437,9 @@ function render(time) {
 	gl.uniform1i(gl.getUniformLocation(combineProgram, "uBloom"), 1);
 
 	gl.uniform1f(gl.getUniformLocation(combineProgram, "uBloomIntensity"), 1.2);
-
+	//draw the full squad with the blur appllied
 	drawFullscreenQuad();
-
+	//draw the next frame (Call the render function again just before the next screen repaint)
 	requestAnimationFrame(render);
 	
 }
@@ -441,14 +450,14 @@ function drawFullscreenQuad() {
 	gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 	gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
-
+//helper function for the view Matrix
 function getViewMatrix() {
 	const vT = mat4Translation(0, 0, -5 * cameraZoom);
 	const vRy = mat4RotY(cameraRotation.y * Math.PI / 180);
 	const vRx = mat4RotX(cameraRotation.x * Math.PI / 180);
 	return mat4Mul(vT, mat4Mul(vRx, vRy));
 }
-
+//helper function for the projection Matrix
 function getProjectionMatrix() {
 	const canvas = document.querySelector("canvas");
 	const aspectRatio = canvas.width / canvas.height;
